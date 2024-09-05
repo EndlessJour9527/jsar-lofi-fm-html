@@ -5,10 +5,10 @@ A Lofi FM radio for chill.
 
 ## Open
 
-Type the following URL in JSAR runtime:
+⬇️ Experience with JSAR runtime from here.
 
 ```sh
-https://cdn.jsdelivr.net/gh/Eis4TY/jsar-lofi-fm@main/main.xsml
+https://m-creativelab.github.io/jsar-dom/?url=https://cdn.jsdelivr.net/gh/Eis4TY/jsar-lofi-fm@main/main.xsml
 ```
 
 ## License
