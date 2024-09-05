@@ -1,0 +1,22 @@
+{
+  "name": "lofi-fm",
+  "displayName": "Lofi-FM",
+  "version": "1.0.0",
+  "description": "A Lofi FM radio for chill",
+  "main": "main.xsml",
+  "scripts": {},
+  "files": [
+    "icon.png",
+    "main.xsml",
+    "lib/*.ts",
+    "audio/lofi.mp3"
+  ],
+  "icon3d": {
+    "base": "./model/welcome.glb"
+  },
+  "author": "E <tinyyoung@foxmail.com>, Yorkie Liu <yorkiefixer@gmail.com>",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "@yodaos-jsar/types": "^v0.3.1"
+  }
+}
