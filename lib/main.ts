@@ -1,20 +1,13 @@
-// const scene = spaceDocument.scene as BABYLON.Scene;
-// const animationGroups = scene.animationGroups.filter((ag) => ag.name.endsWith('#model'));
-
-// if (animationGroups.length >= 1) {
-//   animationGroups[0].start(true);
-// }
 // 监听 spaceReady 事件
-spaceDocument.addEventListener('spaceReady', () => {
-  const scene = spaceDocument.scene as BABYLON.Scene;
+// spaceDocument.addEventListener('spaceReady', () => {
+//   const scene = spaceDocument.scene as BABYLON.Scene;
   
-  scene.animationGroups.forEach(ag => {
-    console.log('开始播放动画:', ag.name);
-    ag.start(true);
-  });
-});
+//   scene.animationGroups.forEach(ag => {
+//     console.log('开始播放动画:', ag.name);
+//     ag.start(true);
+//   });
+// });
 
-// 移除原有的动画播放代码
 
 
 async function playAudioLoop() {
