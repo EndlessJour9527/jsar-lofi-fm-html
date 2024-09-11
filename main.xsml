@@ -2,7 +2,7 @@
   <head>
     <title>JSAR Widget</title>
     <!-- <link id="model" rel="mesh" type="octstream/glb" href="./model/welcome.glb" /> -->
-    <link id="model" rel="mesh" type="octstream/glb" href="./model/record_player.glb" />
+    <link id="model" rel="mesh" type="octstream/glb" href="./model/record_player_ani.glb" />
     
     <script type="module" src="./lib/main.ts"></script>
     <!-- <style type="text/scss">
