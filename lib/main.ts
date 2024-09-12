@@ -3,6 +3,7 @@ const { scene } = spatialDocument;
 let playing = false;
 let stylusOnVinyl = false;
 let music: BABYLON.Sound;
+let buttonClickSound: BABYLON.Sound;
 
 spatialDocument.addEventListener('spaceReady', () => {
   const model = spatialDocument.getNodeById ('model');
@@ -15,12 +16,16 @@ spatialDocument.addEventListener('spaceReady', () => {
   const stylusPlaying_Animation = animationGroups.find(group => group.name === "model.stylus_playing");
   const buttonDown_Animation = animationGroups.find(group => group.name === "model.button_down");
   const buttonUp_Animation = animationGroups.find(group => group.name === "model.button_up");
-  
+
+  // 初始化
+  playButtonClickSound();
+  playAudioLoop();
+
+
   // 更新循环
   const update = () => {
     if (playing) {
       rotateVinyl();
-      
     }
     requestAnimationFrame(update);
   };
@@ -65,6 +70,7 @@ spatialDocument.addEventListener('spaceReady', () => {
     });
     button_play.addEventListener('raydown', () => {
       buttonDown_Animation.start(false);
+      buttonClickSound.play();
     });
 
     button_play.addEventListener('rayup', () => {
@@ -73,41 +79,33 @@ spatialDocument.addEventListener('spaceReady', () => {
         playing = false;
         stylusPlaying_Animation.stop();
         stylusOff_Animation.start(false);
-        pauseAudioLoop();
+        music.pause();
       } else {
         stylusOn_Animation.start(false);
         setTimeout(() => {
           playing = true;
           stylusPlaying_Animation.start(true); // 模拟唱针抖动
-          playAudioLoop();
+          music.play();
         }, 1110);
         
       }
     });
   } 
-
-  if (playing) {
-    rotateVinyl();
-  }
-
-
 });
 
-async function playAudioLoop() { // 播放音乐
-  if (!music) {
+
+  async function playAudioLoop() { // 加载音乐
     const arrayBuffer = await import(`../audio/lofi.mp3`);
-    music = new BABYLON.Sound("Music", arrayBuffer, scene, null, {
-      loop: true,
-      autoplay: false
-    });
+      music = new BABYLON.Sound("Music", arrayBuffer, scene, null, {
+        loop: true,
+        autoplay: false
+      });
   }
-  music.play();
-}
-
-function pauseAudioLoop() { // 暂停音乐
-  if (music) {
-    music.pause();
+  
+  async function playButtonClickSound() { // 加载按钮音效
+    const arrayBuffer = await import(`../audio/button-click.wav`);
+      buttonClickSound = new BABYLON.Sound("ButtonClick", arrayBuffer, scene, null, {
+        loop: false,
+        autoplay: false
+      });
   }
-}
-
-// playAudioLoop(); // 自动播放
