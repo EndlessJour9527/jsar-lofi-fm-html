@@ -2,11 +2,20 @@ const { scene } = spatialDocument;
 
 let playing = false;
 let stylusOnVinyl = false;
-let music: BABYLON.Sound;
-let buttonClickSound: BABYLON.Sound;
 
-spatialDocument.addEventListener('spaceReady', () => {
-  const model = spatialDocument.getNodeById ('model');
+let musicAudio: HTMLAudioElement;
+let playMusic: (volume?: number) => HTMLAudioElement;
+let playButtonClickSound: (volume?: number) => HTMLAudioElement;
+
+function pauseMusic() {
+  if (musicAudio) {
+    musicAudio.pause();
+    musicAudio = null;
+  }
+}
+
+spatialDocument.addEventListener('spaceReady', async () => {
+  const model = spatialDocument.getNodeById('model');
   const vinyl = model.getChildren().find(child => child.name === 'model.__root__').getChildren().find(child => child.name === 'model.vinyl');
   const stylus_parts = model.getChildren().find(child => child.name === 'model.__root__').getChildren().find(child => child.name === 'model.record_player').getChildren().find(child => child.name === 'model.stylus_parts');
   // 获取动画组
@@ -18,16 +27,15 @@ spatialDocument.addEventListener('spaceReady', () => {
   const buttonUp_Animation = animationGroups.find(group => group.name === "model.button_up");
 
   // 初始化
-  playButtonClickSound();
-  playAudioLoop();
-
+  playButtonClickSound = await createAudioPlayer('button-click.wav');
+  playMusic = await createAudioPlayer('lofi.mp3');
 
   // 更新循环
   const update = () => {
     if (playing) {
       rotateVinyl();
     }
-    requestAnimationFrame(update);
+    setTimeout(update, 1000 / 60);
   };
 
   update();
@@ -49,11 +57,11 @@ spatialDocument.addEventListener('spaceReady', () => {
       button_play = button;  // 获取按钮_播放&暂停
     }
   }
- 
+
 
   if (button_play) { // 监听按钮_播放&暂停
-
     const mesh_play = button_play.asNativeType() as BABYLON.AbstractMesh;
+    mesh_play.isPickable = true;
     mesh_play.outlineColor = new BABYLON.Color3(0, 1, 1);
     mesh_play.overlayColor = new BABYLON.Color3(0, 1, 0);
     const originalMaterial = mesh_play.material;
@@ -70,7 +78,7 @@ spatialDocument.addEventListener('spaceReady', () => {
     });
     button_play.addEventListener('raydown', () => {
       buttonDown_Animation.start(false);
-      buttonClickSound.play();
+      playButtonClickSound();
     });
 
     button_play.addEventListener('rayup', () => {
@@ -79,33 +87,30 @@ spatialDocument.addEventListener('spaceReady', () => {
         playing = false;
         stylusPlaying_Animation.stop();
         stylusOff_Animation.start(false);
-        music.pause();
+        pauseMusic();
       } else {
         stylusOn_Animation.start(false);
         setTimeout(() => {
           playing = true;
           stylusPlaying_Animation.start(true); // 模拟唱针抖动
-          music.play();
+          musicAudio = playMusic();
         }, 1110);
-        
+
       }
     });
-  } 
+  }
 });
 
-
-  async function playAudioLoop() { // 加载音乐
-    const arrayBuffer = await import(`../audio/lofi.mp3`);
-      music = new BABYLON.Sound("Music", arrayBuffer, scene, null, {
-        loop: true,
-        autoplay: false
-      });
+async function createAudioPlayer(name: string) : Promise<(volume?: number) => HTMLAudioElement> {
+  const arrayBuffer = await import(`../audio/${name}`);
+  const blob = new Blob([arrayBuffer], { type: 'audio/mpeg' });
+  const objectUrl = URL.createObjectURL(blob);
+  return function playAudio(volume?: number) {
+    const audio = new Audio(objectUrl);
+    if (volume) {
+      audio.volume = volume;
+    }
+    audio.play();
+    return audio;
   }
-  
-  async function playButtonClickSound() { // 加载按钮音效
-    const arrayBuffer = await import(`../audio/button-click.wav`);
-      buttonClickSound = new BABYLON.Sound("ButtonClick", arrayBuffer, scene, null, {
-        loop: false,
-        autoplay: false
-      });
-  }
+}
