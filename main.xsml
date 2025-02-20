@@ -5,6 +5,8 @@
     <link id="model" rel="mesh" type="octstream/glb" href="./model/record_player_ani.glb" />
     
     <script type="module" src="./lib/main.ts"></script>
+    <meta name="viewport" content="bounding-size=1.6">
+
     <!-- <style type="text/scss">
       #gui {
         rotation: 0 180 0;
