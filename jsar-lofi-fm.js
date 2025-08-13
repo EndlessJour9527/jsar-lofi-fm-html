@@ -44,6 +44,13 @@ function init() {
     directionalLight.position.set(5, 5, 5);
     scene.add(directionalLight);
 
+    // 添加点光源增加模型亮度
+    const pointLight = new THREE.PointLight(0xffffff, 40, 10);
+    pointLight.position.set(0, 2, 2);
+    pointLight.name = 'modelPointLight';
+    scene.add(pointLight);
+    console.log('添加点光源增强模型照明');
+
     return { scene, camera };
   }
 
@@ -69,18 +76,30 @@ function init() {
           // 设置音量并播放
           audioState.musicAudio.volume = volume;
           audioState.musicAudio.currentTime = 0; // 从头开始播放
-          audioState.musicAudio.play().catch(err => console.warn('Audio play failed:', err));
+          const playPromise = audioState.musicAudio.play();
+          if (playPromise && typeof playPromise.catch === 'function') {
+            playPromise.catch(err => console.warn('Audio play failed:', err));
+          }
           return audioState.musicAudio;
         } else {
           // 音效文件每次创建新实例（短音效不需要单例）
           const audio = new Audio(audioPath);
           audio.volume = volume;
-          audio.play().catch(err => console.warn('Audio play failed:', err));
+          const playPromise = audio.play();
+          if (playPromise && typeof playPromise.catch === 'function') {
+            playPromise.catch(err => console.warn('Audio play failed:', err));
+          }
           return audio;
         }
       } catch (error) {
         console.warn('Audio creation failed:', error);
-        return null;
+        // 返回一个空的音频对象，避免返回 null
+        return {
+          play: () => Promise.resolve(),
+          pause: () => { },
+          volume: 0,
+          currentTime: 0
+        };
       }
     };
   }
@@ -730,25 +749,43 @@ function init() {
             console.log('开始播放按钮动画，禁用点击');
 
             // 播放按钮：根据当前播放状态决定动画
+            let buttonAnimationName;
             if (gameState.playing) {
               // 当前正在播放，点击暂停
-              playAnimation('button_up');
+              buttonAnimationName = 'button_up';
+              playAnimation(buttonAnimationName);
               xrControl.buttonState = 'up';
               console.log('播放按钮抬起（暂停）');
             } else {
               // 当前暂停，点击播放
-              playAnimation('button_down');
+              buttonAnimationName = 'button_down';
+              playAnimation(buttonAnimationName);
               xrControl.buttonState = 'down';
               console.log('播放按钮按下（播放）');
             }
 
-            // 使用固定延迟重置动画状态，确保防抖可靠性
+            // 获取按钮动画的实际持续时间
+            const buttonAnimDuration = animationControl.animations[buttonAnimationName]?.duration || 0.8;
+            const buttonDelayMs = Math.max(buttonAnimDuration * 1000, 500); // 至少500ms
+
+            console.log(`按钮动画 ${buttonAnimationName} 持续时间: ${buttonAnimDuration}s, 延迟: ${buttonDelayMs}ms`);
+
+            // 等待按钮动画播放完成后再切换播放状态
+            setTimeout(() => {
+              togglePlayback();
+            }, buttonDelayMs);
+
+            // 计算总的防抖时间（按钮动画 + 唱针动画时间）
+            const stylusAnimDuration = gameState.playing ?
+              (animationControl.animations['stylus_Off']?.duration || 1.0) :
+              (animationControl.animations['stylus_On']?.duration || 1.0) + (animationControl.animations['stylus_playing']?.duration || 1.0);
+            const totalDelayMs = buttonDelayMs + (stylusAnimDuration * 1000) + 200; // 额外200ms缓冲
+
+            // 使用动态延迟重置动画状态，确保防抖可靠性
             setTimeout(() => {
               xrControl.isAnimating = false;
               console.log('按钮防抖延迟结束，恢复点击功能');
-            }, 1500); // 1.5秒延迟，确保动画完成
-            // 切换播放状态
-            togglePlayback();
+            }, totalDelayMs);
           }
           //  else if (intersectedObject.userData.buttonType === 'prev') {
           //    // 上一首按钮
@@ -953,15 +990,20 @@ function init() {
 
   // 解析参数
   // const params = parseUrlParams();
+
+
+  // 本地开发环境
   let currentPath = window.location.href;
-  if (currentPath.endsWith('index.html')) {
-    currentPath = currentPath.substring(0, window.location.href.lastIndexOf('/') + 1);
+  if (currentPath.includes('jsar-lofi-fm.html')) {
+    currentPath = currentPath.substring(0, currentPath.lastIndexOf('/') + 1);
+  } else if (currentPath.endsWith('index.html')) {
+    currentPath = currentPath.substring(0, currentPath.lastIndexOf('/') + 1);
   }
   if (!currentPath.endsWith('/')) {
     currentPath += '/';
   }
-  const modelUrl = currentPath + 'model/record_player_ani.glb';
-  // console.log('初始化Lofi FM参数:', { modelUrl, originUrl });
+
+  const modelUrl = currentPath + '/model/record_player_ani.glb';
 
   // 常量定义
   const gl = navigator.gl;
@@ -1009,7 +1051,7 @@ function init() {
     raycaster: new THREE.Raycaster(),
     buttonPressed: false,
     isHovering: false,
-    showRayLine: false,  // 射线显示开关
+    showRayLine: true,  // 射线显示开关
     buttonState: 'up',  // 按钮状态：'up' 或 'down'
     autoStartXR: true,  // 自动启动XR环境开关
     isAnimating: false, // 动画播放状态，用于防抖
@@ -1031,7 +1073,7 @@ function init() {
   // 初始化音频
   async function initAudio() {
     try {
-      audioState.playButtonClick = await createAudioPlayer('./audio/button-click.wav');
+      audioState.playButtonClick = await createAudioPlayer(baseUrl + '/audio/button-click.wav');
 
       // 根据当前音轨索引加载对应的音频文件
       const currentTrack = audioState.trackList[audioState.currentTrackIndex];
@@ -1040,15 +1082,59 @@ function init() {
       console.log('音频系统初始化完成，当前音轨:', currentTrack.name);
     } catch (error) {
       console.error('音频初始化失败:', error);
-      // 确保音频状态不为undefined
-      audioState.playButtonClick = audioState.playButtonClick || (() => null);
-      audioState.playMusic = audioState.playMusic || (() => null);
+      // 确保音频状态不为undefined，提供默认的空函数
+      if (!audioState.playButtonClick || typeof audioState.playButtonClick !== 'function') {
+        audioState.playButtonClick = () => {
+          console.warn('按钮点击音效不可用');
+          return {
+            play: () => Promise.resolve(),
+            pause: () => { },
+            volume: 0,
+            currentTime: 0
+          };
+        };
+      }
+      if (!audioState.playMusic || typeof audioState.playMusic !== 'function') {
+        audioState.playMusic = () => {
+          console.warn('音乐播放不可用');
+          return {
+            play: () => Promise.resolve(),
+            pause: () => { },
+            volume: 0,
+            currentTime: 0
+          };
+        };
+      }
     }
   }
 
   // 启动应用
   async function startApp() {
     await initAudio();
+
+    // 确保 DOM 完全加载后再查找按钮
+    setTimeout(() => {
+      // 添加按钮事件监听器
+      const startButton = document.getElementById('startXR');
+      console.log('查找启动按钮:', startButton);
+
+      if (startButton) {
+        console.log('成功找到启动按钮');
+        setupButtonEvents(startButton);
+      } else {
+        console.error('找不到启动按钮，DOM 可能未完全加载');
+        // 再次尝试查找
+        setTimeout(() => {
+          const retryButton = document.getElementById('startXR');
+          if (retryButton) {
+            console.log('重试成功找到启动按钮');
+            setupButtonEvents(retryButton);
+          } else {
+            console.error('重试后仍找不到启动按钮');
+          }
+        }, 500);
+      }
+    }, 100);
 
     // 立即加载模型进行调试
     console.log('开始加载模型进行调试...');
@@ -1080,10 +1166,10 @@ function init() {
         }
       }
     });
+  }
 
-    // 添加按钮事件监听器
-    const startButton = document.getElementById('startXR');
-    console.log('找到启动按钮:', startButton);
+  // 设置按钮事件
+  function setupButtonEvents(startButton) {
     if (startButton) {
       if (xrControl.autoStartXR) {
         // 自动启动模式：隐藏按钮或显示不同文本
