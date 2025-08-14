@@ -430,33 +430,82 @@ function init() {
   /**
    * 切换播放状态
    */
-  function togglePlayback() {
+  function togglePlayback(onAnimaCompelted) {
     if (gameState.playing) {
-      // 暂停播放
+      // 停止播放序列
       gameState.playing = false;
-      stopAnimation('stylus_playing');
-      playAnimation('stylus_Off');
-      pauseMusic();
-      console.log('音乐已暂停');
-      // 立即更新按钮视觉状态
-      updateButtonStateVisual();
-    } else {
-      // 开始播放
-      playAnimation('stylus_On');
-      setTimeout(() => {
-        gameState.playing = true;
-        playAnimation('stylus_playing', true);
-        // 检查音频函数是否存在
-        if (audioState.playMusic && typeof audioState.playMusic === 'function') {
-          // playMusic函数内部已经会设置audioState.musicAudio
-          audioState.playMusic();
-          console.log('音乐开始播放');
-        } else {
-          console.error('音频播放函数未初始化');
+      console.log('开始停止音乐序列');
+
+      // 停止当前播放的动画
+      ['stylus_On', 'stylus_playing'].forEach(animName => {
+        if (animationControl.animations[animName]) {
+          animationControl.animations[animName].action.stop();
+          console.log('停止动画:', animName);
         }
-        // 更新按钮视觉状态
+      });
+
+      // 暂停音乐
+      pauseMusic();
+      onAnimaCompelted();
+
+      // 播放 stylus_Off 动画
+      if (animationControl.animations['stylus_Off']) {
+        playAnimation('stylus_Off');
+        console.log('播放 stylus_Off 动画');
+
+        // 等待 stylus_Off 完成
+        const stylusOffDuration = animationControl.animations['stylus_Off'].duration * 1000;
+        setTimeout(() => {
+          stopAnimation('stylus_Off');
+          console.log('音乐序列停止完成');
+          updateButtonStateVisual();
+        }, stylusOffDuration);
+      } else {
+        console.log('警告: stylus_Off 动画不存在，序列停止完成');
         updateButtonStateVisual();
-      }, 1110);
+      }
+    } else {
+      // 开始播放序列
+      console.log('开始播放音乐序列');
+
+      // 1. 播放 stylus_On
+      if (animationControl.animations['stylus_On']) {
+        playAnimation('stylus_On');
+        console.log('步骤1: 播放 stylus_On 动画');
+
+        // 2. 等待 stylus_On 完成后播放 stylus_playing
+        const stylusOnDuration = animationControl.animations['stylus_On'].duration * 1000;
+        setTimeout(() => {
+          gameState.playing = true;
+
+          if (animationControl.animations['stylus_playing']) {
+            // 循环播放 stylus_playing
+            playAnimation('stylus_playing', true);
+            console.log('步骤2: 开始循环播放 stylus_playing 动画');
+          }
+
+          // 开始播放音乐
+          if (audioState.playMusic && typeof audioState.playMusic === 'function') {
+            audioState.playMusic();
+            onAnimaCompelted();
+            console.log('音乐开始播放');
+          } else {
+            console.error('音频播放函数未初始化');
+          }
+
+          updateButtonStateVisual();
+        }, stylusOnDuration);
+      } else {
+        console.log('警告: stylus_On 动画不存在，使用简化播放序列');
+        gameState.playing = true;
+        if (animationControl.animations['stylus_playing']) {
+          playAnimation('stylus_playing', true);
+        }
+        if (audioState.playMusic && typeof audioState.playMusic === 'function') {
+          audioState.playMusic();
+        }
+        updateButtonStateVisual();
+      }
     }
   }
 
@@ -752,8 +801,8 @@ function init() {
             let buttonAnimationName;
             if (gameState.playing) {
               // 当前正在播放，点击暂停
-              buttonAnimationName = 'button_up';
-              playAnimation(buttonAnimationName);
+              buttonAnimationName = 'button_down';
+              stopAnimation(buttonAnimationName);
               xrControl.buttonState = 'up';
               console.log('播放按钮抬起（暂停）');
             } else {
@@ -772,20 +821,18 @@ function init() {
 
             // 等待按钮动画播放完成后再切换播放状态
             setTimeout(() => {
-              togglePlayback();
+              togglePlayback(() => {
+                xrControl.isAnimating = false;
+                console.log('按钮防抖延迟结束，恢复点击功能');
+              });
             }, buttonDelayMs);
 
-            // 计算总的防抖时间（按钮动画 + 唱针动画时间）
-            const stylusAnimDuration = gameState.playing ?
-              (animationControl.animations['stylus_Off']?.duration || 1.0) :
-              (animationControl.animations['stylus_On']?.duration || 1.0) + (animationControl.animations['stylus_playing']?.duration || 1.0);
-            const totalDelayMs = buttonDelayMs + (stylusAnimDuration * 1000) + 200; // 额外200ms缓冲
+            // // 计算总的防抖时间（按钮动画 + 唱针动画时间）
+            // const stylusAnimDuration = gameState.playing ?
+            //   (animationControl.animations['stylus_Off']?.duration || 1.0) :
+            //   (animationControl.animations['stylus_On']?.duration || 1.0) + (animationControl.animations['stylus_playing']?.duration || 1.0);
+            // const totalDelayMs = buttonDelayMs + (stylusAnimDuration) + 200; // 额外200ms缓冲
 
-            // 使用动态延迟重置动画状态，确保防抖可靠性
-            setTimeout(() => {
-              xrControl.isAnimating = false;
-              console.log('按钮防抖延迟结束，恢复点击功能');
-            }, totalDelayMs);
           }
           //  else if (intersectedObject.userData.buttonType === 'prev') {
           //    // 上一首按钮
@@ -853,26 +900,39 @@ function init() {
       xrControl.controllerPrev.copy(currentPosition);
     }
 
-    // 检测悬停效果（仅在非拖拽状态下）
-    if (!xrControl.isDragging) {
-      const intersects = getIntersections(controller);
+    // 检测悬停效果（独立于拖拽状态）
+    const intersects = getIntersections(controller);
+    let isHoveringButton = false;
 
-      if (intersects.length > 0) {
-        const intersectedObject = intersects[0].object;
-        // console.log('检测到交互对象:', intersectedObject.name, '是否为按钮:', intersectedObject.userData.isButton);
+    if (intersects.length > 0) {
+      const intersectedObject = intersects[0].object;
+      // console.log('检测到交互对象:', intersectedObject.name, '是否为按钮:', intersectedObject.userData.isButton);
 
-        if (intersectedObject.userData.isButton && !xrControl.isHovering) {
+      if (intersectedObject.userData.isButton) {
+        isHoveringButton = true;
+        if (!xrControl.isHovering && intersectedObject.name === 'pause_play') {
           // 开始悬停
           xrControl.isHovering = true;
-          console.log('开始悬停在按钮上');
+          console.log('开始悬停在按钮上', intersectedObject.name);
           updateButtonStateVisual('hover');
+        } else {
+          // 如果当前没有悬停在按钮上，但之前有悬停状态，则清除悬停
+          if (!isHoveringButton && xrControl.isHovering) {
+            // 结束悬停
+            xrControl.isHovering = false;
+            console.log('结束悬停在按钮上');
+            updateButtonStateVisual(); // 自动根据当前状态更新视觉
+          }
         }
-      } else if (xrControl.isHovering) {
-        // 结束悬停
-        xrControl.isHovering = false;
-        console.log('结束悬停在按钮上');
-        updateButtonStateVisual(); // 自动根据当前状态更新视觉
       }
+    }
+
+    // 如果当前没有悬停在按钮上，但之前有悬停状态，则清除悬停
+    if (!isHoveringButton && xrControl.isHovering) {
+      // 结束悬停
+      xrControl.isHovering = false;
+      console.log('结束悬停在按钮上');
+      updateButtonStateVisual(); // 自动根据当前状态更新视觉
     }
   }
 
@@ -1073,7 +1133,7 @@ function init() {
   // 初始化音频
   async function initAudio() {
     try {
-      audioState.playButtonClick = await createAudioPlayer(baseUrl + '/audio/button-click.wav');
+      audioState.playButtonClick = await createAudioPlayer('./audio/button-click.wav');
 
       // 根据当前音轨索引加载对应的音频文件
       const currentTrack = audioState.trackList[audioState.currentTrackIndex];

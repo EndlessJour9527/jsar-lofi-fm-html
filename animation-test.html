@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>动画测试页面</title>
+  <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.155.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.155.0/examples/jsm/"
+        }
+    }
+    </script>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      font-family: 'Arial', sans-serif;
+      color: white;
+    }
+
+    #container {
+      width: 100%;
+      height: 80vh;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-radius: 10px;
+      background: rgba(0, 0, 0, 0.2);
+    }
+
+    .controls {
+      margin: 20px 0;
+      text-align: center;
+    }
+
+    .btn {
+      background: rgba(255, 255, 255, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      color: white;
+      padding: 10px 20px;
+      margin: 5px;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .btn:hover {
+      background: rgba(255, 255, 255, 0.3);
+      transform: translateY(-2px);
+    }
+
+    .info {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 15px;
+      border-radius: 8px;
+      margin: 10px 0;
+    }
+
+    .animation-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 10px;
+      margin: 20px 0;
+    }
+
+    .animation-item {
+      background: rgba(255, 255, 255, 0.1);
+      padding: 10px;
+      border-radius: 5px;
+      text-align: center;
+    }
+
+    .animation-item.playing {
+      background: rgba(76, 175, 80, 0.3);
+      border: 1px solid #4CAF50;
+    }
+
+    #log {
+      background: rgba(0, 0, 0, 0.5);
+      padding: 10px;
+      border-radius: 5px;
+      height: 200px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>🎵 Lofi FM 动画测试工具</h1>
+
+  <div class="info">
+    <h3>📋 测试说明</h3>
+    <p>此页面用于测试 record_player_ani.glb 模型的所有动画效果</p>
+    <p>点击下方按钮来播放不同的动画，观察动画是否正常播放和切换</p>
+  </div>
+
+  <div class="controls">
+    <button class="btn" onclick="loadModel()">🔄 加载模型</button>
+    <button class="btn" onclick="stopAllAnimations()">⏹️ 停止所有动画</button>
+    <button class="btn" onclick="clearLog()">🗑️ 清空日志</button>
+  </div>
+
+  <div class="controls">
+    <h3>🎵 音乐播放模拟</h3>
+    <button class="btn" onclick="playMusicSequence()" id="playBtn">▶️ 播放音乐</button>
+    <button class="btn" onclick="stopMusicSequence()" id="stopBtn">⏹️ 停止音乐</button>
+    <div id="sequenceStatus" style="margin-top: 10px; font-weight: bold;">状态: 待机</div>
+  </div>
+
+  <div id="container"></div>
+
+  <div class="info">
+    <h3>🎬 可用动画列表</h3>
+    <div id="animationList" class="animation-list">
+      <div class="animation-item">加载模型后显示...</div>
+    </div>
+  </div>
+
+  <div class="info">
+    <h3>📝 运行日志</h3>
+    <div id="log"></div>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    // 全局变量
+    let scene, camera, renderer, controls;
+    let model, mixer;
+    let animations = {};
+    let clock = new THREE.Clock();
+    let currentPlayingAnimation = null;
+
+    // 日志函数
+    function log(message) {
+      const logElement = document.getElementById('log');
+      const timestamp = new Date().toLocaleTimeString();
+      logElement.textContent += `[${timestamp}] ${message}\n`;
+      logElement.scrollTop = logElement.scrollHeight;
+      console.log(message);
+    }
+
+    // 清空日志
+    window.clearLog = function () {
+      document.getElementById('log').textContent = '';
+    }
+
+    // 初始化Three.js场景
+    function initScene() {
+      const container = document.getElementById('container');
+
+      // 场景
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x222222);
+
+      // 相机
+      camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
+      camera.position.set(0, 2, 5);
+
+      // 渲染器
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      container.appendChild(renderer.domElement);
+
+      // 控制器
+      controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
+
+      // 光照
+      const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+      scene.add(ambientLight);
+
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      directionalLight.position.set(5, 10, 5);
+      directionalLight.castShadow = true;
+      scene.add(directionalLight);
+
+      // 地面
+      const planeGeometry = new THREE.PlaneGeometry(20, 20);
+      const planeMaterial = new THREE.MeshLambertMaterial({ color: 0x333333 });
+      const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+      plane.rotation.x = -Math.PI / 2;
+      plane.receiveShadow = true;
+      scene.add(plane);
+
+      log('Three.js 场景初始化完成');
+    }
+
+    // 加载模型
+    window.loadModel = function () {
+      log('开始加载模型...');
+
+      const loader = new GLTFLoader();
+      loader.load(
+        './model/record_player_ani.glb',
+        function (gltf) {
+          // 移除旧模型
+          if (model) {
+            scene.remove(model);
+          }
+
+          model = gltf.scene;
+          model.scale.set(1, 1, 1);
+          model.position.set(0, 0, 0);
+
+          // 启用阴影
+          model.traverse(function (child) {
+            if (child.isMesh) {
+              child.castShadow = true;
+              child.receiveShadow = true;
+            }
+          });
+
+          scene.add(model);
+          log(`模型加载成功，包含 ${gltf.animations.length} 个动画`);
+
+          // 设置动画
+          setupAnimations(gltf);
+        },
+        function (progress) {
+          const percent = (progress.loaded / progress.total * 100).toFixed(1);
+          log(`加载进度: ${percent}%`);
+        },
+        function (error) {
+          log(`模型加载失败: ${error.message}`);
+        }
+      );
+    }
+
+    // 设置动画
+    function setupAnimations(gltf) {
+      if (gltf.animations && gltf.animations.length > 0) {
+        mixer = new THREE.AnimationMixer(model);
+        animations = {};
+
+        gltf.animations.forEach(anim => {
+          const action = mixer.clipAction(anim);
+          animations[anim.name] = {
+            action: action,
+            duration: anim.duration,
+            name: anim.name
+          };
+          log(`注册动画: ${anim.name}, 时长: ${anim.duration.toFixed(2)}s`);
+        });
+
+        updateAnimationList();
+        log('所有动画设置完成');
+      } else {
+        log('模型中没有找到动画数据');
+      }
+    }
+
+    // 更新动画列表UI
+    function updateAnimationList() {
+      const listElement = document.getElementById('animationList');
+      listElement.innerHTML = '';
+
+      Object.keys(animations).forEach(animName => {
+        const item = document.createElement('div');
+        item.className = 'animation-item';
+        item.innerHTML = `
+                    <strong>${animName}</strong><br>
+                    <small>时长: ${animations[animName].duration.toFixed(2)}s</small><br>
+                    <button class="btn" onclick="playAnimation('${animName}')">▶️ 播放</button>
+                    <button class="btn" onclick="stopAnimation('${animName}')">⏹️ 停止</button>
+                `;
+        listElement.appendChild(item);
+      });
+    }
+
+    // 播放动画
+    window.playAnimation = function (animName) {
+      if (!animations[animName]) {
+        log(`动画 ${animName} 不存在`);
+        return;
+      }
+
+      const anim = animations[animName];
+      anim.action.reset();
+      anim.action.setLoop(THREE.LoopOnce);
+      anim.action.clampWhenFinished = true;
+      anim.action.play();
+
+      // 更新UI状态
+      updateAnimationUI(animName, true);
+      currentPlayingAnimation = animName;
+
+      log(`播放动画: ${animName}`);
+
+      // 监听动画完成事件
+      const onFinished = () => {
+        log(`动画 ${animName} 播放完成`);
+        updateAnimationUI(animName, false);
+        if (currentPlayingAnimation === animName) {
+          currentPlayingAnimation = null;
+        }
+        mixer.removeEventListener('finished', onFinished);
+      };
+
+      mixer.addEventListener('finished', onFinished);
+    }
+
+    // 停止动画
+    window.stopAnimation = function (animName) {
+      if (!animations[animName]) {
+        log(`动画 ${animName} 不存在`);
+        return;
+      }
+
+      animations[animName].action.stop();
+      updateAnimationUI(animName, false);
+      log(`停止动画: ${animName}`);
+    }
+
+    // 停止所有动画
+    window.stopAllAnimations = function () {
+      Object.keys(animations).forEach(animName => {
+        animations[animName].action.stop();
+        updateAnimationUI(animName, false);
+      });
+      currentPlayingAnimation = null;
+      isPlayingMusic = false;
+      updateSequenceStatus('待机');
+      log('停止所有动画');
+    }
+
+    // 音乐播放状态
+    let isPlayingMusic = false;
+    let musicSequenceTimeouts = [];
+
+    // 更新序列状态显示
+    function updateSequenceStatus(status) {
+      document.getElementById('sequenceStatus').textContent = `状态: ${status}`;
+    }
+
+    // 清除所有定时器
+    function clearMusicTimeouts() {
+      musicSequenceTimeouts.forEach(timeout => clearTimeout(timeout));
+      musicSequenceTimeouts = [];
+    }
+
+    // 播放音乐序列
+    window.playMusicSequence = function () {
+      if (isPlayingMusic) {
+        log('音乐已在播放中');
+        return;
+      }
+
+      if (!mixer || Object.keys(animations).length === 0) {
+        log('请先加载模型');
+        return;
+      }
+
+      isPlayingMusic = true;
+      clearMusicTimeouts();
+      updateSequenceStatus('播放中');
+      log('开始播放音乐序列');
+
+      // 1. 播放 button_down
+      if (animations['button_down']) {
+        playAnimation('button_down');
+        log('步骤1: 播放 button_down 动画');
+
+        // 2. 等待 button_down 完成后播放 stylus_On
+        const buttonDuration = animations['button_down'].duration * 1000;
+        const timeout1 = setTimeout(() => {
+          if (!isPlayingMusic) return;
+
+          if (animations['stylus_On']) {
+            playAnimation('stylus_On');
+            log('步骤2: 播放 stylus_On 动画');
+
+            // 3. 等待 stylus_On 完成后播放 stylus_playing
+            const stylusOnDuration = animations['stylus_On'].duration * 1000;
+            const timeout2 = setTimeout(() => {
+              if (!isPlayingMusic) return;
+
+              if (animations['stylus_playing']) {
+                // 循环播放 stylus_playing
+                const anim = animations['stylus_playing'];
+                anim.action.reset();
+                anim.action.setLoop(THREE.LoopRepeat);
+                anim.action.play();
+                updateAnimationUI('stylus_playing', true);
+                log('步骤3: 开始循环播放 stylus_playing 动画');
+                updateSequenceStatus('音乐播放中 (循环)');
+              }
+            }, stylusOnDuration);
+            musicSequenceTimeouts.push(timeout2);
+          }
+        }, buttonDuration);
+        musicSequenceTimeouts.push(timeout1);
+      } else {
+        log('警告: button_down 动画不存在');
+      }
+    }
+
+    // 停止音乐序列
+    window.stopMusicSequence = function () {
+      if (!isPlayingMusic) {
+        log('音乐未在播放');
+        return;
+      }
+
+      isPlayingMusic = false;
+      clearMusicTimeouts();
+      updateSequenceStatus('停止中');
+      log('开始停止音乐序列');
+
+      // 停止当前播放的动画
+      ['button_down', 'stylus_On', 'stylus_playing'].forEach(animName => {
+        if (animations[animName]) {
+          animations[animName].action.stop();
+          updateAnimationUI(animName, false);
+        }
+      });
+
+      // 播放 stylus_Off 动画
+      if (animations['stylus_Off']) {
+        playAnimation('stylus_Off');
+        log('播放 stylus_Off 动画');
+
+        // 等待 stylus_Off 完成
+        const stylusOffDuration = animations['stylus_Off'].duration * 1000;
+        setTimeout(() => {
+          stopAnimation('stylus_Off');
+          updateSequenceStatus('待机');
+          log('音乐序列停止完成');
+        }, stylusOffDuration);
+      } else {
+        updateSequenceStatus('待机');
+        log('警告: stylus_Off 动画不存在，序列停止完成');
+      }
+    }
+
+    // 更新动画UI状态
+    function updateAnimationUI(animName, isPlaying) {
+      const items = document.querySelectorAll('.animation-item');
+      items.forEach(item => {
+        if (item.innerHTML.includes(animName)) {
+          if (isPlaying) {
+            item.classList.add('playing');
+          } else {
+            item.classList.remove('playing');
+          }
+        }
+      });
+    }
+
+    // 渲染循环
+    function animate() {
+      requestAnimationFrame(animate);
+
+      const delta = clock.getDelta();
+
+      if (mixer) {
+        mixer.update(delta);
+      }
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    // 窗口大小调整
+    function onWindowResize() {
+      const container = document.getElementById('container');
+      camera.aspect = container.clientWidth / container.clientHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(container.clientWidth, container.clientHeight);
+    }
+
+    // 初始化
+    window.addEventListener('load', () => {
+      initScene();
+      animate();
+      log('动画测试工具初始化完成');
+      log('请点击"加载模型"按钮开始测试');
+    });
+
+    window.addEventListener('resize', onWindowResize);
+  </script>
+</body>
+
+</html>
