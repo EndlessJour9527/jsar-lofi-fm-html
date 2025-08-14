@@ -1063,214 +1063,214 @@ function init() {
     currentPath += '/';
   }
 
-  const modelUrl = currentPath + '/model/record_player_ani.glb';
+  const modelUrl = currentPath + 'model/record_player_ani.glb';
 
-  // 常量定义
-  const gl = navigator.gl;
+// 常量定义
+const gl = navigator.gl;
 
-  // 初始化场景
-  const { scene, camera } = initScene();
-  const group = new THREE.Group();
-  scene.add(group);
+// 初始化场景
+const { scene, camera } = initScene();
+const group = new THREE.Group();
+scene.add(group);
 
-  // 游戏状态
-  const gameState = {
-    playing: false,
-    stylusOnVinyl: false
-  };
+// 游戏状态
+const gameState = {
+  playing: false,
+  stylusOnVinyl: false
+};
 
-  // 模型组件
-  const modelComponents = {
-    vinyl: null,
-    playButton: null,
-    stylus: null,
-    originalMaterial: null
-  };
+// 模型组件
+const modelComponents = {
+  vinyl: null,
+  playButton: null,
+  stylus: null,
+  originalMaterial: null
+};
 
-  // 音频状态
-  const audioState = {
-    musicAudio: null, // 单例音频实例
-    playMusic: null,
-    playButtonClick: null,
-    currentTrackIndex: 0,
-    trackList: [
-      { name: 'Lofi Track 1', file: './audio/lofi.mp3' },
-      // 可以添加更多音轨
-    ]
-  };
+// 音频状态
+const audioState = {
+  musicAudio: null, // 单例音频实例
+  playMusic: null,
+  playButtonClick: null,
+  currentTrackIndex: 0,
+  trackList: [
+    { name: 'Lofi Track 1', file: './audio/lofi.mp3' },
+    // 可以添加更多音轨
+  ]
+};
 
-  // 动画控制器
-  const animationControl = {
-    mixer: null,
-    animations: {},
-    clock: new THREE.Clock()
-  };
+// 动画控制器
+const animationControl = {
+  mixer: null,
+  animations: {},
+  clock: new THREE.Clock()
+};
 
-  // XR控制器
-  const xrControl = {
-    raycaster: new THREE.Raycaster(),
-    buttonPressed: false,
-    isHovering: false,
-    showRayLine: true,  // 射线显示开关
-    buttonState: 'up',  // 按钮状态：'up' 或 'down'
-    autoStartXR: true,  // 自动启动XR环境开关
-    isAnimating: false, // 动画播放状态，用于防抖
-    // 旋转控制相关
-    selectedModel: null,
-    isDragging: false,
-    controllerPrev: new THREE.Vector3(),
-    rotationSpeed: 3000.0
-  };
+// XR控制器
+const xrControl = {
+  raycaster: new THREE.Raycaster(),
+  buttonPressed: false,
+  isHovering: false,
+  showRayLine: true,  // 射线显示开关
+  buttonState: 'up',  // 按钮状态：'up' 或 'down'
+  autoStartXR: true,  // 自动启动XR环境开关
+  isAnimating: false, // 动画播放状态，用于防抖
+  // 旋转控制相关
+  selectedModel: null,
+  isDragging: false,
+  controllerPrev: new THREE.Vector3(),
+  rotationSpeed: 3000.0
+};
 
-  // 鼠标控制器（用于非XR环境测试）
-  const mouseControl = {
-    raycaster: new THREE.Raycaster(),
-    mouse: new THREE.Vector2(),
-    isHovering: false,
-    isClicking: false
-  };
+// 鼠标控制器（用于非XR环境测试）
+const mouseControl = {
+  raycaster: new THREE.Raycaster(),
+  mouse: new THREE.Vector2(),
+  isHovering: false,
+  isClicking: false
+};
 
-  // 初始化音频
-  async function initAudio() {
-    try {
-      audioState.playButtonClick = await createAudioPlayer('./audio/button-click.wav');
+// 初始化音频
+async function initAudio() {
+  try {
+    audioState.playButtonClick = await createAudioPlayer('./audio/button-click.wav');
 
-      // 根据当前音轨索引加载对应的音频文件
-      const currentTrack = audioState.trackList[audioState.currentTrackIndex];
-      audioState.playMusic = await createAudioPlayer(currentTrack.file);
+    // 根据当前音轨索引加载对应的音频文件
+    const currentTrack = audioState.trackList[audioState.currentTrackIndex];
+    audioState.playMusic = await createAudioPlayer(currentTrack.file);
 
-      console.log('音频系统初始化完成，当前音轨:', currentTrack.name);
-    } catch (error) {
-      console.error('音频初始化失败:', error);
-      // 确保音频状态不为undefined，提供默认的空函数
-      if (!audioState.playButtonClick || typeof audioState.playButtonClick !== 'function') {
-        audioState.playButtonClick = () => {
-          console.warn('按钮点击音效不可用');
-          return {
-            play: () => Promise.resolve(),
-            pause: () => { },
-            volume: 0,
-            currentTime: 0
-          };
+    console.log('音频系统初始化完成，当前音轨:', currentTrack.name);
+  } catch (error) {
+    console.error('音频初始化失败:', error);
+    // 确保音频状态不为undefined，提供默认的空函数
+    if (!audioState.playButtonClick || typeof audioState.playButtonClick !== 'function') {
+      audioState.playButtonClick = () => {
+        console.warn('按钮点击音效不可用');
+        return {
+          play: () => Promise.resolve(),
+          pause: () => { },
+          volume: 0,
+          currentTime: 0
         };
-      }
-      if (!audioState.playMusic || typeof audioState.playMusic !== 'function') {
-        audioState.playMusic = () => {
-          console.warn('音乐播放不可用');
-          return {
-            play: () => Promise.resolve(),
-            pause: () => { },
-            volume: 0,
-            currentTime: 0
-          };
+      };
+    }
+    if (!audioState.playMusic || typeof audioState.playMusic !== 'function') {
+      audioState.playMusic = () => {
+        console.warn('音乐播放不可用');
+        return {
+          play: () => Promise.resolve(),
+          pause: () => { },
+          volume: 0,
+          currentTime: 0
         };
-      }
+      };
     }
   }
+}
 
-  // 启动应用
-  async function startApp() {
-    await initAudio();
+// 启动应用
+async function startApp() {
+  await initAudio();
 
-    // 确保 DOM 完全加载后再查找按钮
-    setTimeout(() => {
-      // 添加按钮事件监听器
-      const startButton = document.getElementById('startXR');
-      console.log('查找启动按钮:', startButton);
+  // 确保 DOM 完全加载后再查找按钮
+  setTimeout(() => {
+    // 添加按钮事件监听器
+    const startButton = document.getElementById('startXR');
+    console.log('查找启动按钮:', startButton);
 
-      if (startButton) {
-        console.log('成功找到启动按钮');
-        setupButtonEvents(startButton);
-      } else {
-        console.error('找不到启动按钮，DOM 可能未完全加载');
-        // 再次尝试查找
-        setTimeout(() => {
-          const retryButton = document.getElementById('startXR');
-          if (retryButton) {
-            console.log('重试成功找到启动按钮');
-            setupButtonEvents(retryButton);
-          } else {
-            console.error('重试后仍找不到启动按钮');
-          }
-        }, 500);
-      }
-    }, 100);
-
-    // 立即加载模型进行调试
-    console.log('开始加载模型进行调试...');
-    console.log('模型URL:', modelUrl);
-    loadModel(modelUrl, (err) => {
-      if (err) {
-        console.error('Lofi FM模型加载失败:', err);
-        updateStatus('模型加载失败: ' + err.message);
-      } else {
-        console.log('Lofi FM模型加载完成');
-        updateStatus('模型加载完成！');
-
-        console.log('动画系统初始化完成，可用动画:', Object.keys(animationControl.animations));
-
-        // 检查是否自动启动XR
-        if (xrControl.autoStartXR) {
-          console.log('自动启动XR环境...');
-          updateStatus('自动启动AR会话...');
-
-          // 延迟一秒后自动启动，确保模型完全加载
-          setTimeout(() => {
-            if (navigator.xr) {
-              startXRSession();
-            } else {
-              console.warn('WebXR不支持，无法自动启动');
-              updateStatus('WebXR不支持，请手动点击按钮');
-            }
-          }, 1000);
-        }
-      }
-    });
-  }
-
-  // 设置按钮事件
-  function setupButtonEvents(startButton) {
     if (startButton) {
-      if (xrControl.autoStartXR) {
-        // 自动启动模式：隐藏按钮或显示不同文本
-        startButton.textContent = '自动启动中...';
-        startButton.disabled = true;
-        updateStatus('准备就绪，即将自动启动AR体验');
-      } else {
-        // 手动启动模式：正常显示按钮
-        startButton.addEventListener('click', () => {
-          if (!navigator.xr) {
-            updateStatus('此设备不支持WebXR');
-            return;
-          }
-
-          startButton.disabled = true;
-          startButton.textContent = '正在启动...';
-
-          updateStatus('启动AR会话...');
-          startXRSession();
-        });
-
-        updateStatus('准备就绪，点击按钮开始体验');
-      }
+      console.log('成功找到启动按钮');
+      setupButtonEvents(startButton);
     } else {
-      console.error('找不到启动按钮');
+      console.error('找不到启动按钮，DOM 可能未完全加载');
+      // 再次尝试查找
+      setTimeout(() => {
+        const retryButton = document.getElementById('startXR');
+        if (retryButton) {
+          console.log('重试成功找到启动按钮');
+          setupButtonEvents(retryButton);
+        } else {
+          console.error('重试后仍找不到启动按钮');
+        }
+      }, 500);
     }
-  }
+  }, 100);
 
-  // 添加全局错误处理
-  window.addEventListener('unhandledrejection', function (event) {
-    console.warn('Unhandled promise rejection:', event.reason);
-    // 防止错误冒泡到控制台
-    event.preventDefault();
+  // 立即加载模型进行调试
+  console.log('开始加载模型进行调试...');
+  console.log('模型URL:', modelUrl);
+  loadModel(modelUrl, (err) => {
+    if (err) {
+      console.error('Lofi FM模型加载失败:', err);
+      updateStatus('模型加载失败: ' + err.message);
+    } else {
+      console.log('Lofi FM模型加载完成');
+      updateStatus('模型加载完成！');
+
+      console.log('动画系统初始化完成，可用动画:', Object.keys(animationControl.animations));
+
+      // 检查是否自动启动XR
+      if (xrControl.autoStartXR) {
+        console.log('自动启动XR环境...');
+        updateStatus('自动启动AR会话...');
+
+        // 延迟一秒后自动启动，确保模型完全加载
+        setTimeout(() => {
+          if (navigator.xr) {
+            startXRSession();
+          } else {
+            console.warn('WebXR不支持，无法自动启动');
+            updateStatus('WebXR不支持，请手动点击按钮');
+          }
+        }, 1000);
+      }
+    }
   });
+}
 
-  // 等待DOM加载完成后启动应用
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', startApp);
+// 设置按钮事件
+function setupButtonEvents(startButton) {
+  if (startButton) {
+    if (xrControl.autoStartXR) {
+      // 自动启动模式：隐藏按钮或显示不同文本
+      startButton.textContent = '自动启动中...';
+      startButton.disabled = true;
+      updateStatus('准备就绪，即将自动启动AR体验');
+    } else {
+      // 手动启动模式：正常显示按钮
+      startButton.addEventListener('click', () => {
+        if (!navigator.xr) {
+          updateStatus('此设备不支持WebXR');
+          return;
+        }
+
+        startButton.disabled = true;
+        startButton.textContent = '正在启动...';
+
+        updateStatus('启动AR会话...');
+        startXRSession();
+      });
+
+      updateStatus('准备就绪，点击按钮开始体验');
+    }
   } else {
-    startApp();
+    console.error('找不到启动按钮');
   }
+}
+
+// 添加全局错误处理
+window.addEventListener('unhandledrejection', function (event) {
+  console.warn('Unhandled promise rejection:', event.reason);
+  // 防止错误冒泡到控制台
+  event.preventDefault();
+});
+
+// 等待DOM加载完成后启动应用
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', startApp);
+} else {
+  startApp();
+}
 }
 
 // ==================== 程序入口 ====================
